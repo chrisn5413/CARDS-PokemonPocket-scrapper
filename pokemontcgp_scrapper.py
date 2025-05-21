@@ -19,7 +19,7 @@ type_mapping = {
     "C": "Colorless",
 }
 
-probabilitys_per_row = rate_by_rarity = {
+probabilities_per_row = rate_by_rarity = {
     "1-3 card": {
         "◊": "100.000%",
         "◊◊": "0.000%",
@@ -72,9 +72,22 @@ packs = [
     "Mew pack",
     "Dialga pack",
     "Palkia pack",
+    "Arceus pack",
+    "Pokeball pack",
+    "Solgaleo pack",
+    "Lunala pack",
 ]
 
-sets = ["A1", "P-A", "A1a", "A2"]
+sets = ["P-A", "A1", "A1a", "A2", "A2a", "A2b", "A3"]
+set_total = {
+    "A1": 286,
+    "P-A": 73,
+    "A1a": 86,
+    "A2": 207,
+    "A2a": 96,
+    "A2b": 111,
+    "A3": 239,
+}
 
 
 def map_attack_cost(cost_elements):
@@ -332,7 +345,21 @@ def extract_crafting_cost(rarity):
 def iterate_per_set(set_name, start_id, end_id):
     for i in range(start_id, end_id + 1):
         url = f"{BASE_URL}{set_name}/{i}"
-        response = requests.get(url)
+
+        response_timeout_passed = False
+        response = ""
+        timeout_counter = 0
+        while not response_timeout_passed:
+            try:
+                response = requests.get(url)
+                response_timeout_passed = True
+            except Exception as e:
+                print(f"Exception: {e} occured, waiting 5 seconds before retrying")
+                response_timeout_passed = False
+                timeout_counter += 1
+                if timeout_counter > 5: raise Exception(f"Response timed out {timeout_counter} times")
+                time.sleep(5)
+
         soup = BeautifulSoup(response.content, "html.parser")
         try:
             card_info = extract_card_info(soup)
@@ -347,16 +374,34 @@ def iterate_per_set(set_name, start_id, end_id):
 
 def iterate_all_sets():
     for set_name in sets:
-        iterate_per_set(set_name, 1, 285)
+        end_id = set_total[set_name] if set_name in set_total else 286
+        iterate_per_set(set_name, 1, end_id)
 
 
 def convert_cards_to_json(start_id, end_id, filename):
     cards = []
     error_tracker = 0
     for set_name in sets:
+        end_id = set_total[set_name] if set_name in set_total else end_id
+
         for i in range(start_id, end_id + 1):
             url = f"{BASE_URL}{set_name}/{i}"
-            response = requests.get(url)
+
+            response_timeout_passed = False
+            response = ""
+            timeout_counter = 0
+            while not response_timeout_passed:
+                try:
+                    response = requests.get(url)
+                    response_timeout_passed = True
+                except Exception as e:
+                    print(f"Exception: {e} occurred, waiting 5 seconds before retrying")
+                    response_timeout_passed = False
+                    timeout_counter += 1
+                    if timeout_counter > 5: raise Exception(f"Response timed out {timeout_counter} times")
+                    time.sleep(5)
+
+
             soup = BeautifulSoup(response.content, "html.parser")
             try:
                 card_info = extract_card_info(soup)
@@ -371,7 +416,7 @@ def convert_cards_to_json(start_id, end_id, filename):
                 continue
 
             cards.append(card_info)
-    with open(filename, "w") as file:
+    with open(filename, "w", encoding="utf-8") as file:
         json.dump(cards, file, ensure_ascii=False, indent=4)
 
 
@@ -381,9 +426,9 @@ start_id = 1
 end_id = 286
 filename = "pokemon_cards.json"
 iterate_all_sets()
-#convert_cards_to_json(start_id, end_id, filename)
+# convert_cards_to_json(start_id, end_id, filename)
 end_time = time.time()
 print(
     f"Finished downloading cards to {filename}, total time: {
-        end_time - init_time} segundos."
+        end_time - init_time} seconds."
 )
